@@ -4,8 +4,14 @@ import numpy as np
 # This function calls FEBio with the given values for the parameters p
 def febio_function(p):
 
+    # TODO: Set this to the FEBio input model file name
+    febioFile = 'Model1.feb'
+
     # prepare the parameter run file
-    fp = open('pyrun.feb', 'w')
+    # TODO: Update this code so that the correct model input and output parameters are used
+    #       The number of input parameters defined here must match the number of parameters
+    #       defined in the febio_uncertainSCI file. 
+    fp = open('run.feb', 'w')
     fp.write('<?xml version="1.0"?>\n')
     fp.write('<febio_run version="1.0">\n')
     fp.write('    <Parameters>\n')
@@ -21,7 +27,7 @@ def febio_function(p):
 
     # run febio
     print('calling febio ...', str(p))
-    subprocess.run(['febio3', '-i', 'Model1.feb', '-task=param_run', 'pyrun.feb', '-silent'])
+    subprocess.run(['febio3', '-i', febioFile, '-task=param_run', 'run.feb', '-silent'])
     # read the output file
     of = open('out.txt', 'r')
     line = of.readline()
