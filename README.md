@@ -10,19 +10,15 @@ To run this tool, you will need:
 - The UncertainSCI package (https://www.sci.utah.edu/cibc-software/uncertainsci.html). Note that this package does not work with Python 3.10 (last checked on Nov 2021). 
 
 ## Instructions
-To run this tool, you will first need a FEBio model file. A test model file (Model1.feb) is provided. 
+To run this tool, you will need to prepare two files: 
 
-Then, decide which model parameters of the model you wish to use in uncertainty quantification. 
-The code is currently setup to use the E and v parameters of the test model's material. 
+- first, you need a FEBio model file. A test model file (Model1.feb) is provided. 
+- second, you need to create the parameter control file, which lists the input parameters that you wish to test, as well as min and max value, and the output parameter that defines the dependent variable. A sample control file (control.txt) is provided. 
 
-You will need to make changes to the following files: 
-- febio_model.py: where you will enter the model parameters
-- febio_uncertainSCI.py: where you will update the code to make sure the correct number of variables are used. 
+With the two files prepared, you can run the analysis with the following command line:
 
-There are additional instructions in these files (look for comments that start with TODO).
+python febio_uncertainSCI.py Model1.feb control.txt
 
-Once all changed are made, you can run the tool using the following command:
-python febio_uncertainSCI.py
 
 The tool generates two files: 
 - run.feb : This is an intermediate file that is used to run FEBio with the provided model parameters. 
@@ -30,6 +26,6 @@ The tool generates two files:
 Both files will be overwritten multiple times while the tool runs. Do not delete or try to change these files while the tool is running. 
 Once the tool completes, you may delete these files. 
 
-If all goes well, you will see a box plot.
+If all goes well, you will see a box plot, generated from sampling the PCE, and a pie chart that lists the global sensitivities for the different parameters and their interactions.
 
 Good luck!
