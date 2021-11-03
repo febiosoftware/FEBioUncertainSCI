@@ -2,25 +2,19 @@ import subprocess
 import numpy as np
 
 # This function calls FEBio with the given values for the parameters p
-def febio_function(p):
-
-    # TODO: Set this to the FEBio input model file name
-    febioFile = 'Model1.feb'
+def febio_function(p, febioFile, inparams, outparam):
 
     # prepare the parameter run file
-    # TODO: Update this code so that the correct model input and output parameters are used
-    #       The number of input parameters defined here must match the number of parameters
-    #       defined in the febio_uncertainSCI file. 
     fp = open('run.feb', 'w')
     fp.write('<?xml version="1.0"?>\n')
     fp.write('<febio_run version="1.0">\n')
     fp.write('    <Parameters>\n')
-    fp.write('          <param name="fem.material[0].E">'); fp.write(str(p[0])); fp.write('</param>\n')
-    fp.write('          <param name="fem.material[0].v">'); fp.write(str(p[1])); fp.write('</param>\n')
+    for i in range(p.shape[0]):
+        fp.write('          <param name="');fp.write(inparams[i]);fp.write('">'); fp.write(str(p[i])); fp.write('</param>\n')
     fp.write('    </Parameters>\n')
     fp.write('    <Output>\n')
     fp.write('      <file>out.txt</file>\n')
-    fp.write('      <param name="fem.rigidbody(\'rigid\').Fx"/>\n')
+    fp.write(f'      <param name="{outparam}"/>\n')
     fp.write('    </Output>\n')
     fp.write('</febio_run>\n')
     fp.close()
@@ -38,3 +32,16 @@ def febio_function(p):
     print(v[0], 'done\n')
 
     return v
+
+# Generate the FEBio output from the provided samples
+def febio_output(samples, febioFile, inparams, outparam):
+    # get sample size and dimensions
+    M = samples.shape[0]
+
+    # create empty output array
+    model_output = np.empty([M, 1])
+    
+    for ind in range(samples.shape[0]):
+        model_output[ind, :] = febio_function(samples[ind, :], febioFile, inparams, outparam)
+
+    return model_output

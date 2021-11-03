@@ -1,0 +1,3 @@
+fem.material[0].E, 0.1, 2.0
+fem.material[0].v, 0.0, 0.495
+fem.rigidbody('rigid').Fx
