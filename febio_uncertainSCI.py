@@ -1,9 +1,9 @@
-import sys
+import sys, time
 import numpy as np
 from matplotlib import pyplot as plt
 from itertools import chain, combinations
 
-from febio_model import febio_function, febio_output
+from febio_model import febio_function, febio_output, febio_output_parallel
 from UncertainSCI.distributions import BetaDistribution, TensorialDistribution
 from UncertainSCI.pce import PolynomialChaosExpansion
 from UncertainSCI.indexing import TotalDegreeSet
@@ -11,8 +11,8 @@ from UncertainSCI.indexing import TotalDegreeSet
 ###################### COMMAND LINE PARSING ###############################
 
 # Make sure we have three arguments
-if (len(sys.argv) != 3):
-    print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file>')
+if (len(sys.argv) != 3) and (len(sys.argv) != 4)and (len(sys.argv) != 5):
+    print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file> [parallelJobs [threadsPerJob]]')
     quit()
 
 # first argument is FEBio input file name
@@ -27,6 +27,14 @@ print('Control file: ', controlFile)
 f = open(controlFile, 'rt')
 lines = f.readlines()
 f.close()
+
+numParallelJobs = 1
+if (len(sys.argv) >= 4):
+    numParallelJobs = int(sys.argv[3])
+
+numThreadsPerJob = 1
+if (len(sys.argv) == 5):
+    numThreadsPerJob = int(sys.argv[4])
 
 ###################### SETUP ###############################
 
@@ -70,9 +78,30 @@ pce = PolynomialChaosExpansion(distribution=p, index_set=index_set)
 pce.generate_samples()
 print(pce.samples)
 
+# we're going to time the calls to FEBio
+tic = time.time()
+
 # evaluate model output. This will call FEBio for all samples
-model_output = febio_output(pce.samples, febioFile, vars, outparam)
+if (numParallelJobs == 1):
+    model_output = febio_output(pce.samples, febioFile, vars, outparam)
+else:
+    print('Calling FEBio in parallel:')
+    model_output = febio_output_parallel(pce.samples, febioFile, vars, outparam, numParallelJobs, numThreadsPerJob)
+
+# report time
+toc = time.time()
+    
+# Calculate time it took to run suite
+hours, remainder = divmod(int(toc-tic), 3600)
+minutes, seconds = divmod(remainder, 60)
+
+elapsedTime = '%s:%s:%s' % (hours, minutes, seconds)
+    
+print("Time elapsed:" + elapsedTime)
+
 print(model_output)
+
+
 
 # do the uncertainsci stuff
 pce.build_pce_wafp(model_output=model_output)
