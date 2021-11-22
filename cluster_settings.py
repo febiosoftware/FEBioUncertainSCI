@@ -3,7 +3,7 @@ USERNAME = ""
 REMOTEDIR = ""
 REMOTEFEBIO = ""
 
-SLURMDIR = "/opt/hpe/hpc/slurm/16.05.4/bin/"
+SLURMDIR = ""
 SBATCH = SLURMDIR + "sbatch"
 SQUEUE = SLURMDIR + "squeue"
 
