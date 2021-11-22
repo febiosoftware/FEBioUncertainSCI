@@ -1,4 +1,4 @@
-import subprocess
+import subprocess, time
 import numpy as np
 
 def createRunFile(runFileName, outFileName, p, inparams, outparam):
@@ -104,6 +104,9 @@ def febio_output_parallel(samples, febioFile, inparams, outparam, numParallelJob
 
             # cleanup
             del jobs[jobId]
+
+        # take a little nap
+        time.sleep(0.001)
 
     # All done, so return 
     return model_output

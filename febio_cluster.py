@@ -32,7 +32,7 @@ class JobFile:
         
         
     def makeBatchScript(self):
-        with open(self.localScript, "w") as f:
+        with open(self.localScript, "w", newline='\n') as f:
             script = SCRIPT
             script += REMOTEFEBIO + " -i " + self.remoteFeb + " -task=param_run " + self.remoteRunFile + " -silent"
             

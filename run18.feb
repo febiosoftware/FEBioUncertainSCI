@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<febio_run version="1.0">
+    <Parameters>
+          <param name="fem.material[0].E">1.96587864298275</param>
+          <param name="fem.material[0].v">0.13824585588075589</param>
+    </Parameters>
+    <Output>
+      <file>out18.txt</file>
+      <param name="fem.domain_data(pct('s1', 0.95), 'Part1')"/>
+    </Output>
+</febio_run>
