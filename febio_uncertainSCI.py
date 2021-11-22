@@ -8,6 +8,12 @@ from UncertainSCI.distributions import BetaDistribution, TensorialDistribution
 from UncertainSCI.pce import PolynomialChaosExpansion
 from UncertainSCI.indexing import TotalDegreeSet
 
+try:
+    import febio_cluster
+    clusterErr = ""
+except Exception as e:
+    clusterErr = e
+
 ###################### COMMAND LINE PARSING ###############################
 
 # Make sure we have three arguments
@@ -23,18 +29,24 @@ print('FEBio input file: ', febioFile)
 controlFile = sys.argv[2]
 print('Control file: ', controlFile)
 
+cluster = False
+if sys.argv[3] == "--cluster":
+    cluster = True
+
 # read the control file
 f = open(controlFile, 'rt')
 lines = f.readlines()
 f.close()
 
-numParallelJobs = 1
-if (len(sys.argv) >= 4):
-    numParallelJobs = int(sys.argv[3])
+if not cluster:
 
-numThreadsPerJob = 1
-if (len(sys.argv) == 5):
-    numThreadsPerJob = int(sys.argv[4])
+    numParallelJobs = 1
+    if (len(sys.argv) >= 4):
+        numParallelJobs = int(sys.argv[3])
+
+    numThreadsPerJob = 1
+    if (len(sys.argv) == 5):
+        numThreadsPerJob = int(sys.argv[4])
 
 ###################### SETUP ###############################
 
@@ -82,11 +94,19 @@ print(pce.samples)
 tic = time.time()
 
 # evaluate model output. This will call FEBio for all samples
-if (numParallelJobs == 1):
-    model_output = febio_output(pce.samples, febioFile, vars, outparam)
+if cluster:
+    if clusterErr:
+        print("Could not import febio_cluster.py. Error message: ")
+        print(clusterErr)
+        quit()
+        
+    model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, vars, outparam)
 else:
-    print('Calling FEBio in parallel:')
-    model_output = febio_output_parallel(pce.samples, febioFile, vars, outparam, numParallelJobs, numThreadsPerJob)
+    if (numParallelJobs == 1):
+        model_output = febio_output(pce.samples, febioFile, vars, outparam)
+    else:
+        print('Calling FEBio in parallel:')
+        model_output = febio_output_parallel(pce.samples, febioFile, vars, outparam, numParallelJobs, numThreadsPerJob)
 
 # report time
 toc = time.time()
