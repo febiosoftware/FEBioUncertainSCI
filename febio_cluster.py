@@ -54,6 +54,8 @@ class JobFile:
                 return False
             elif self.status == "PD":
                 return False
+            elif self.status == "CF":
+                return False
             else:
                 self.getFiles(sftp)
                 
