@@ -121,8 +121,6 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
     if missing:
         quit()
         
-    if not REMOTEDIR.endswith("/"):
-        REMOTEDIR += "/"
     
     # get sample size
     totalJobs = samples.shape[0]
@@ -155,7 +153,6 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
         febio_model.createRunFile(jobs[current].localRunFile, jobs[current].localOutFile, samples[current, :], inparams, outparam)
         
         current += 1
-    
     
     while True:
         finished = []
