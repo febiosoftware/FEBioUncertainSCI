@@ -6,7 +6,12 @@ from cluster_settings import *
 class JobFile:
     
     def __init__(self, febFile, runName):
+        self.runName = runName
         workingDir = os.path.dirname(febFile)
+        # if this isn't empy, add an ending slash
+        if workingDir:
+            workingDir += "/"
+        
         febName = os.path.basename(febFile)
         self.runFile = "run" + runName + ".feb"
         outFile = "out" + runName + ".txt"
@@ -25,11 +30,6 @@ class JobFile:
         self.jobID = 0
         self.status = "PD"
         
-        self.jobQueued = False
-        self.jobFinished = False
-        
-        self.makeBatchScript()
-        
         
     def makeBatchScript(self):
         with open(self.localScript, "w", newline='\n') as f:
@@ -39,29 +39,18 @@ class JobFile:
             f.write(script)
             
     def update(self, ssh, sftp):
-        if not self.jobQueued:
-            self.putFiles(sftp)
-            self.queueJob(ssh)
-            
-            self.jobQueued = True
-            
+        self.checkStatus(ssh)
+        
+        if self.status == "R":
             return False
+        elif self.status == "PD":
+            return False
+        elif self.status == "CF":
+            return False
+        else:
+            self.getFiles(sftp)
             
-        if not self.jobFinished:
-            self.checkStatus(ssh)
-            
-            if self.status == "R":
-                return False
-            elif self.status == "PD":
-                return False
-            elif self.status == "CF":
-                return False
-            else:
-                self.getFiles(sftp)
-                
-                return True
-                
-        return False
+            return True
             
     def putFiles(self, sftp):
         sftp.put(self.localRunFile, self.remoteRunFile)
@@ -76,7 +65,7 @@ class JobFile:
         os.remove(self.localScript)
         
     def queueJob(self, ssh):
-        command = SBATCH + " -o /dev/null -e /dev/null " + self.remoteScript   
+        command = SBATCH + " -o /dev/null -e /dev/null " + self.remoteScript
         
         stdin, stdout, stderr = ssh.exec_command("cd " + REMOTEDIR + "; " + command)
         
@@ -98,6 +87,72 @@ class JobFile:
         
 def missingVar(var):
     print("Please set the " + var + " variable in cluster_settings.py")
+
+def startClient():
+    ssh = SSHClient()
+    
+    password = getpass.getpass()
+    
+    ssh.load_system_host_keys()
+    ssh.set_missing_host_key_policy(AutoAddPolicy())
+    ssh.connect(HOSTNAME, username=USERNAME, password=password)
+    
+    sftp = ssh.open_sftp()
+    
+    return ssh, sftp
+
+def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
+    closeSSH = False
+    if ssh is None:
+        ssh, sftp = startClient()
+        closeSSH = True
+        
+    # convert to absolute path
+    febioFile = os.path.abspath(febioFile)
+    
+    sftp.put(febioFile, REMOTEDIR + os.path.basename(febioFile))
+    
+    # get sample size
+    totalJobs = samples.shape[0]
+    
+    infoName = os.path.splitext(os.path.basename(febioFile))[0] + ".info"
+    
+    info = open(infoName, 'w')
+    
+    info.write("REMOTEDIR=" + REMOTEDIR + "\n")
+    info.write("FEBIOFILE=" + febioFile + "\n")
+    info.write("OUTPARAM=" + outparam + "\n")
+    
+    info.write("SAMPLES:" + "\n")
+    info.write(str(samples))
+    
+    # This will store the processes
+    jobs = {}
+    # start all jobs
+    current = 0
+    while (current < totalJobs):
+        currentString = str(current)
+        
+        jobs[current] = JobFile(febioFile, currentString)
+        jobs[current].makeBatchScript()
+        
+        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].remoteOutFile, samples[current, :], inparams, outparam)
+        
+        current += 1
+        
+    info.write("\nJOBS:" + "\n")
+    for key in jobs:
+        jobs[key].putFiles(sftp)
+        jobs[key].queueJob(ssh)
+        info.write(jobs[key].runName + " " + str(jobs[key].jobID) + "\n")
+        
+    info.close()
+    
+    if closeSSH:
+        sftp.close()
+        ssh.close()
+    
+    return jobs
         
 def febio_output_cluster(samples, febioFile, inparams, outparam):
     
@@ -120,39 +175,14 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
         
     if missing:
         quit()
-        
-    
-    # get sample size
-    totalJobs = samples.shape[0]
 
-    # create empty output array
-    model_output = np.empty([totalJobs, 1])
-    
-    ssh = SSHClient()
-    
-    password = getpass.getpass()
-    
-    ssh.load_system_host_keys()
-    ssh.set_missing_host_key_policy(AutoAddPolicy())
-    ssh.connect(HOSTNAME, username=USERNAME, password=password)
-    
-    sftp = ssh.open_sftp()
-    
-    sftp.put(febioFile, REMOTEDIR + os.path.basename(febioFile))
-    
+    ssh, sftp = startClient()    
     
     # This will store the processes
-    jobs = {}
-    # start all jobs
-    current = 0
-    while (current < totalJobs):
-        currentString = str(current)
-        
-        jobs[current] = JobFile(febioFile, currentString)
-        
-        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].localOutFile, samples[current, :], inparams, outparam)
-        
-        current += 1
+    jobs = queueJobs(samples, febioFile, inparams, outparam, ssh, sftp)
+    
+    # create empty output array
+    model_output = np.empty([samples.shape[0], 1])
     
     while True:
         finished = []

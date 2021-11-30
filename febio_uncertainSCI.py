@@ -17,9 +17,9 @@ except Exception as e:
 ###################### COMMAND LINE PARSING ###############################
 
 # Make sure we have three arguments
-if (len(sys.argv) != 3) and (len(sys.argv) != 4)and (len(sys.argv) != 5):
-    print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file> [parallelJobs [threadsPerJob]]')
-    quit()
+# ~ if (len(sys.argv) != 3) and (len(sys.argv) != 4)and (len(sys.argv) != 5):
+    # ~ print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file> [parallelJobs [threadsPerJob]]')
+    # ~ quit()
 
 # first argument is FEBio input file name
 febioFile = sys.argv[1]
@@ -30,8 +30,16 @@ controlFile = sys.argv[2]
 print('Control file: ', controlFile)
 
 cluster = False
-if sys.argv[3] == "--cluster":
+queueOnly = False
+finalize = False
+if "--cluster" in sys.argv:
     cluster = True
+elif "--queue" in sys.argv:
+    cluster = True
+    queueOnly = True
+elif "--finalize" in sys.argv:
+    cluster = True
+    finalize = True
 
 # read the control file
 f = open(controlFile, 'rt')
@@ -54,12 +62,12 @@ if not cluster:
 parameters = len(lines) - 1
 print(f'parameters = {parameters}')
 
-vars = []
+inparams = []
 dists = []
 for i in range(parameters):
     items = lines[i].split(',')
     print(items)
-    vars.append(items[0])
+    inparams.append(items[0])
     fmin = float(items[1])
     fmax = float(items[2])
     bounds = np.array([[fmin], [fmax]])
@@ -70,7 +78,7 @@ for i in range(parameters):
 
     dists.append(p1)
 
-print(vars)
+print(inparams)
 
 outparam = lines[parameters].rstrip()
 print(outparam)
@@ -89,6 +97,7 @@ pce = PolynomialChaosExpansion(distribution=p, index_set=index_set)
 # first generate the sampels
 pce.generate_samples()
 print(pce.samples)
+print(type(pce.samples))
 
 # we're going to time the calls to FEBio
 tic = time.time()
@@ -99,14 +108,18 @@ if cluster:
         print("Could not import febio_cluster.py. Error message: ")
         print(clusterErr)
         quit()
-        
-    model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, vars, outparam)
+    
+    if queueOnly:
+        febio_cluster.queueJobs(pce.samples, febioFile, inparams, outparam)
+        quit()
+    else:
+        model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparam)
 else:
     if (numParallelJobs == 1):
-        model_output = febio_output(pce.samples, febioFile, vars, outparam)
+        model_output = febio_output(pce.samples, febioFile, inparams, outparam)
     else:
         print('Calling FEBio in parallel:')
-        model_output = febio_output_parallel(pce.samples, febioFile, vars, outparam, numParallelJobs, numThreadsPerJob)
+        model_output = febio_output_parallel(pce.samples, febioFile, inparams, outparam, numParallelJobs, numThreadsPerJob)
 
 # report time
 toc = time.time()
