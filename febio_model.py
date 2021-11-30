@@ -1,4 +1,4 @@
-import subprocess, time
+import subprocess, time, platform
 import numpy as np
 
 def createRunFile(runFileName, outFileName, p, inparams, outparam):
@@ -61,6 +61,12 @@ def febio_output_parallel(samples, febioFile, inparams, outparam, numParallelJob
 
     # create empty output array
     model_output = np.empty([totalJobs, 1])
+    
+    # find febio3 full path for use in Popen
+    febio3 = "febio3"
+    if platform.system() != "Windows":
+        out = subprocess.run(['which', 'febio3'], capture_output=True)
+        febio3 = out.stdout.decode('utf8').strip()
 
     # This will store the processes
     jobs = {}
@@ -78,7 +84,7 @@ def febio_output_parallel(samples, febioFile, inparams, outparam, numParallelJob
             createRunFile(runFileName, outFileName, samples[current, :], inparams, outparam)
 
             # start FEBio
-            command = ['febio3', '-i', febioFile, '-task=param_run', runFileName, '-silent']
+            command = [febio3, '-i', febioFile, '-task=param_run', runFileName, '-silent']
             jobs[currentString] = subprocess.Popen(command, env={"OMP_NUM_THREADS": str(numThreadsPerJob)}, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             current += 1
 
