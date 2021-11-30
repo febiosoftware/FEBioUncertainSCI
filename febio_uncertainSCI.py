@@ -17,9 +17,10 @@ except Exception as e:
 ###################### COMMAND LINE PARSING ###############################
 
 # Make sure we have three arguments
-# ~ if (len(sys.argv) != 3) and (len(sys.argv) != 4)and (len(sys.argv) != 5):
-    # ~ print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file> [parallelJobs [threadsPerJob]]')
-    # ~ quit()
+numArgs = len(sys.argv)
+if (numArgs != 3) and (numArgs != 4)and (numArgs != 5):
+    print('Usage: python febio_uncertainSCI.py <FEBio input file> <parameter file> [parallelJobs [threadsPerJob] | --cluster]')
+    quit()
 
 # first argument is FEBio input file name
 febioFile = sys.argv[1]
