@@ -40,6 +40,14 @@ def febio_function(p, febioFile, runFileName, outFileName, inparams, outparam):
 
     return v
 
+# write model output to a file
+def write_model_output(model_output, fileName):
+    M = model_output.shape[0]
+    fp = open('pceresults.txt', 'w')
+    for ind in range(M):
+        fp.write(str(model_output[ind, 0])); fp.write('\n')
+    fp.close()
+
 # Generate the FEBio output from the provided samples
 def febio_output(samples, febioFile, inparams, outparam):
     # get sample size and dimensions
@@ -48,10 +56,24 @@ def febio_output(samples, febioFile, inparams, outparam):
     # create empty output array
     model_output = np.empty([M, 1])
     
-    for ind in range(samples.shape[0]):
+    for ind in range(M):
         model_output[ind, :] = febio_function(samples[ind, :], febioFile, 'run.feb', 'out.txt', inparams, outparam)
 
+    # store all results to a file
+    write_model_output(model_output, 'pceresults.txt')
+
     return model_output
+
+# read the FEBio model output
+def read_model_output(outFilename):
+    of = open(outFilename, 'r')
+    lines = of.readlines()
+    v = np.empty([len(lines), 1])
+    i = 0
+    for line in lines:
+        v[i, 0] = float(line)
+        i += 1
+    return v
 
 # Calls FEBio in parallel. 
 def febio_output_parallel(samples, febioFile, inparams, outparam, numParallelJobs, numThreadsPerJob):
@@ -113,6 +135,9 @@ def febio_output_parallel(samples, febioFile, inparams, outparam, numParallelJob
 
         # take a little nap
         time.sleep(0.001)
+
+    # write model output to file
+    write_model_output(model_output, 'pceresults.txt')
 
     # All done, so return 
     return model_output

@@ -3,7 +3,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from itertools import chain, combinations
 
-from febio_model import febio_function, febio_output, febio_output_parallel
+from febio_model import febio_function, febio_output, febio_output_parallel, read_model_output
 from UncertainSCI.distributions import BetaDistribution, TensorialDistribution
 from UncertainSCI.pce import PolynomialChaosExpansion
 from UncertainSCI.indexing import TotalDegreeSet
@@ -30,6 +30,7 @@ print('FEBio input file: ', febioFile)
 controlFile = sys.argv[2]
 print('Control file: ', controlFile)
 
+# check for cluster flag
 cluster = False
 queueOnly = False
 finalize = False
@@ -42,22 +43,28 @@ elif "--finalize" in sys.argv:
     cluster = True
     finalize = True
 
-# read the control file
-f = open(controlFile, 'rt')
-lines = f.readlines()
-f.close()
+# check for restart flag
+restart = False
+if "--restart"in sys.argv:
+    restart = True
 
-if not cluster:
+# check for parallel options
+numParallelJobs = 1
+numThreadsPerJob = 1
+if (not cluster) and (not restart):
 
-    numParallelJobs = 1
     if (len(sys.argv) >= 4):
         numParallelJobs = int(sys.argv[3])
 
-    numThreadsPerJob = 1
     if (len(sys.argv) == 5):
         numThreadsPerJob = int(sys.argv[4])
 
 ###################### SETUP ###############################
+
+# read the control file
+f = open(controlFile, 'rt')
+lines = f.readlines()
+f.close()
 
 # the number of parameters is one less than the number of lines
 parameters = len(lines) - 1
@@ -88,17 +95,46 @@ print(outparam)
 p = TensorialDistribution(distributions=dists)
 
 # TODO: set the order of the PCE
-order = 4
+order = 7
 
 ############################ Build PCE #############################
 
 index_set = TotalDegreeSet(dim=parameters, order=order)
 pce = PolynomialChaosExpansion(distribution=p, index_set=index_set)
 
-# first generate the sampels
-pce.generate_samples()
-print(pce.samples)
-print(type(pce.samples))
+# first generate the samples
+# if the restart flag was defined, we read the samples from the 'pcesamples.txt' file. 
+if restart==False:
+    pce.generate_samples()
+    print(pce.samples)
+
+    # write samples to file (for restart)
+    fp = open('pcesamples.txt', 'w')
+    for ind in range(pce.samples.shape[0]):
+        v = pce.samples[ind, :]
+        for d in v:
+            fp.write(str(d)); fp.write(' ')
+        fp.write('\n')
+    fp.close()
+
+if restart==True:
+    # read samples from file
+    fp = open('pcesamples.txt', 'r')
+    allLines = fp.readlines()
+    fp.close()
+    M = len(allLines)
+    print(M)
+    newSamples = np.empty([M, parameters])
+    i = 0
+    for line in allLines:
+        s = line.split(' ')
+        for j in range(parameters):
+            vj = float(s[j])
+            newSamples[i, j] = vj
+        i += 1
+    print(newSamples)
+
+    pce.samples = newSamples
 
 # we're going to time the calls to FEBio
 tic = time.time()
@@ -116,11 +152,14 @@ if cluster:
     else:
         model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparam)
 else:
-    if (numParallelJobs == 1):
-        model_output = febio_output(pce.samples, febioFile, inparams, outparam)
+    if restart==False:
+        if (numParallelJobs == 1):
+            model_output = febio_output(pce.samples, febioFile, inparams, outparam)
+        else:
+            print('Calling FEBio in parallel:')
+            model_output = febio_output_parallel(pce.samples, febioFile, inparams, outparam, numParallelJobs, numThreadsPerJob)
     else:
-        print('Calling FEBio in parallel:')
-        model_output = febio_output_parallel(pce.samples, febioFile, inparams, outparam, numParallelJobs, numThreadsPerJob)
+        model_output = read_model_output('pceresults.txt')
 
 # report time
 toc = time.time()
