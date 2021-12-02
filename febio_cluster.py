@@ -101,7 +101,7 @@ def startClient():
     
     return ssh, sftp
 
-def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
+def queueJobs(samples, febioFile, inparams, outparams, ssh = None, sftp = None):
     closeSSH = False
     if ssh is None:
         ssh, sftp = startClient()
@@ -121,7 +121,7 @@ def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
     
     info.write("REMOTEDIR=" + REMOTEDIR + "\n")
     info.write("FEBIOFILE=" + febioFile + "\n")
-    info.write("OUTPARAM=" + outparam + "\n")
+    # ~ info.write("OUTPARAM=" + outparams + "\n")
     
     info.write("SAMPLES:" + "\n")
     info.write(str(samples))
@@ -136,7 +136,7 @@ def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
         jobs[current] = JobFile(febioFile, currentString)
         jobs[current].makeBatchScript()
         
-        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].remoteOutFile, samples[current, :], inparams, outparam)
+        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].remoteOutFile, samples[current, :], inparams, outparams)
         
         current += 1
         
@@ -154,7 +154,7 @@ def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
     
     return jobs
         
-def febio_output_cluster(samples, febioFile, inparams, outparam):
+def febio_output_cluster(samples, febioFile, inparams, outparams):
     
     missing = False
     if HOSTNAME == "":
@@ -179,10 +179,10 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
     ssh, sftp = startClient()    
     
     # This will store the processes
-    jobs = queueJobs(samples, febioFile, inparams, outparam, ssh, sftp)
+    jobs = queueJobs(samples, febioFile, inparams, outparams, ssh, sftp)
     
     # create empty output array
-    model_output = np.empty([samples.shape[0], 1])
+    model_output = np.empty([len(outparams), samples.shape[0], 1])
     
     while True:
         finished = []
@@ -195,7 +195,8 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
         for jobID in finished:
             v = febio_model.get_febio_output(jobs[jobID].localOutFile)
 
-            model_output[jobID, :] = v
+            for i in range(len(outparams)):
+                model_output[i, jobID, :] = v[i]
 
             print(jobID, 'done')
 
