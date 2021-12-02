@@ -13,12 +13,11 @@ To run this tool, you will need:
 To run this tool, you will need to prepare two files: 
 
 - first, you need a FEBio model file. A test model file (Model1.feb) is provided. 
-- second, you need to create the parameter control file, which lists the input parameters that you wish to test, as well as min and max value, and the output parameter that defines the dependent variable. A sample control file (control.txt) is provided. 
+- second, you need to create the parameter control file, which lists the input parameters that you wish to test, as well as min and max value, and the output parameters that define the dependent variables. A sample control file (control.json) is provided. Note that the control file uses a JSON structure. 
 
 With the two files prepared, you can run the analysis with the following command line:
 
-python febio_uncertainSCI.py Model1.feb control.txt
-
+python febio_uncertainSCI.py Model1.feb control.json
 
 The tool generates two files: 
 - run.feb : This is an intermediate file that is used to run FEBio with the provided model parameters. 

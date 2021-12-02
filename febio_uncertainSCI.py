@@ -1,5 +1,17 @@
+###################################################################################
+#   FEBio-UncertainSCI
+#=======================
+# 
+# This code applies the UncertainSCI library to FEBio. 
+# The code allows users to evaluate uncertainty and sensitivity of FEBio model
+# parameters on model output variables. 
+#
+# This code is distributed under the MIT license. See LICENSE file for details.
+# Copyright 2021 - All rights reserved.
+###################################################################################
 import sys, time
 import numpy as np
+import json
 from matplotlib import pyplot as plt
 from itertools import chain, combinations
 
@@ -62,22 +74,30 @@ if (not cluster) and (not restart):
 ###################### SETUP ###############################
 
 # read the control file
-f = open(controlFile, 'rt')
-lines = f.readlines()
+f = open(controlFile)
+data = json.load(f)
+
+inParamCount = len(data['in'])
+print(f'in parameters = {inParamCount}')
+
+outParamCount = len(data['out'])
+print(f'out parameters = {outParamCount}')
+
+for i in data['in']:
+    print(i)
+
+for o in data['out']:
+    print(o)
+
 f.close()
 
 # the number of parameters is one less than the number of lines
-parameters = len(lines) - 1
-print(f'parameters = {parameters}')
-
 inparams = []
 dists = []
-for i in range(parameters):
-    items = lines[i].split(',')
-    print(items)
-    inparams.append(items[0])
-    fmin = float(items[1])
-    fmax = float(items[2])
+for i in data['in']:
+    inparams.append(i[0])
+    fmin = float(i[1])
+    fmax = float(i[2])
     bounds = np.array([[fmin], [fmax]])
     print(bounds)
 
@@ -88,18 +108,18 @@ for i in range(parameters):
 
 print(inparams)
 
-outparam = lines[parameters].rstrip()
-print(outparam)
+outparams = data['out']
+print(outparams)
 
 # Add all parameter distributions to this variable
 p = TensorialDistribution(distributions=dists)
 
-# TODO: set the order of the PCE
-order = 7
+pceOrder = data['pce']['order']
+print(f'PCE order = {pceOrder}')
 
 ############################ Build PCE #############################
 
-index_set = TotalDegreeSet(dim=parameters, order=order)
+index_set = TotalDegreeSet(dim=inParamCount, order=pceOrder)
 pce = PolynomialChaosExpansion(distribution=p, index_set=index_set)
 
 # first generate the samples
@@ -124,11 +144,11 @@ if restart==True:
     fp.close()
     M = len(allLines)
     print(M)
-    newSamples = np.empty([M, parameters])
+    newSamples = np.empty([M, inParamCount])
     i = 0
     for line in allLines:
         s = line.split(' ')
-        for j in range(parameters):
+        for j in range(inParamCount):
             vj = float(s[j])
             newSamples[i, j] = vj
         i += 1
@@ -147,17 +167,17 @@ if cluster:
         quit()
     
     if queueOnly:
-        febio_cluster.queueJobs(pce.samples, febioFile, inparams, outparam)
+        febio_cluster.queueJobs(pce.samples, febioFile, inparams, outparams)
         quit()
     else:
-        model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparam)
+        model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparams)
 else:
     if restart==False:
         if (numParallelJobs == 1):
-            model_output = febio_output(pce.samples, febioFile, inparams, outparam)
+            model_output = febio_output(pce.samples, febioFile, inparams, outparams)
         else:
             print('Calling FEBio in parallel:')
-            model_output = febio_output_parallel(pce.samples, febioFile, inparams, outparam, numParallelJobs, numThreadsPerJob)
+            model_output = febio_output_parallel(pce.samples, febioFile, inparams, outparams, numParallelJobs, numThreadsPerJob)
     else:
         model_output = read_model_output('pceresults.txt')
 
@@ -176,52 +196,58 @@ print(model_output)
 
 
 
-# do the uncertainsci stuff
-pce.build_pce_wafp(model_output=model_output)
-
 ################################### Statistics ##########################
-mean = pce.mean()
-stdev = pce.stdev()
-print("Mean   = ", mean)
-print("St.dev.= ", stdev)
+for n in range(len(outparams)):
+    outn = outparams[n]
+    print(f'--- processing {outn} -----\n\n')
 
-variable_interactions = list(chain.from_iterable(combinations(range(parameters), r) for r in range(1, parameters+1)))
+    # do the uncertainsci stuff
+    outdata = model_output[n]
+    pce.build_pce_wafp(model_output=outdata)
 
-global_sensitivity = pce.global_sensitivity(variable_interactions)
+    mean = pce.mean()
+    stdev = pce.stdev()
+    print("Mean   = ", mean)
+    print("St.dev.= ", stdev)
 
-print("Global sensitivities:")
-print(global_sensitivity)
+    variable_interactions = list(chain.from_iterable(combinations(range(inParamCount), r) for r in range(1, inParamCount+1)))
 
-total_sensitivies = pce.total_sensitivity()
-print("Total sensitivities:")
-print(total_sensitivies)
+    global_sensitivity = pce.global_sensitivity(variable_interactions)
 
-# Post-processing: sample the PCE emulator
-ensemble_size = int(1e6)
-ensembles = []
-pvals = p.MC_samples(M=ensemble_size)
-ensembles.append(pce.pce_eval(pvals))
+    print("Global sensitivities:")
+    print(global_sensitivity)
 
-# Box plots require 1D arrays as input
-for i in range(len(ensembles)):
-    ensembles[i] = ensembles[i].flatten()
+    total_sensitivies = pce.total_sensitivity()
+    print("Total sensitivities:")
+    print(total_sensitivies)
 
-## Construct boxplots
-plt.figure()
-plt.subplot(121)
-plt.boxplot(ensembles)
-tick_locations = [1 + i for i in range(len(ensembles))]
-tick_labels = ['UncertainSCI\n{1:d} samples\norder {0:d}'.format(order, pce.samples.shape[0])]
-tick_labels.append('Monte Carlo\n{0:1.1e} samples'.format(ensemble_size))
-plt.xticks(ticks=tick_locations, labels=tick_labels)
-plt.title(outparam)
+    # Post-processing: sample the PCE emulator
+    ensemble_size = int(1e6)
+    ensembles = []
+    pvals = p.MC_samples(M=ensemble_size)
+    ensembles.append(pce.pce_eval(pvals))
 
-# Sensitivity pie chart, averaged over all model degrees of freedom
-plt.subplot(122)
-average_global_SI = np.sum(global_sensitivity, axis=1)
+    # Box plots require 1D arrays as input
+    for i in range(len(ensembles)):
+        ensembles[i] = ensembles[i].flatten()
 
-labels = ['[' + ' '.join(str(elem) for elem in [i+1 for i in item]) + ']' for item in variable_interactions]
-plt.pie(average_global_SI*100, labels=labels, autopct='%1.1f%%', startangle=90)
+    ## Construct boxplots
+    plt.figure()
+    plt.subplot(121)
+    plt.boxplot(ensembles)
+    tick_locations = [1 + i for i in range(len(ensembles))]
+    tick_labels = ['UncertainSCI\n{1:d} samples\norder {0:d}'.format(pceOrder, pce.samples.shape[0])]
+    tick_labels.append('Monte Carlo\n{0:1.1e} samples'.format(ensemble_size))
+    plt.xticks(ticks=tick_locations, labels=tick_labels)
+    plt.title(outn)
 
-plt.title('Global Sensitivity')
+    # Sensitivity pie chart, averaged over all model degrees of freedom
+    plt.subplot(122)
+    average_global_SI = np.sum(global_sensitivity, axis=1)
+
+    labels = ['[' + ' '.join(str(elem) for elem in [i+1 for i in item]) + ']' for item in variable_interactions]
+    plt.pie(average_global_SI*100, labels=labels, autopct='%1.1f%%', startangle=90)
+
+    plt.title('Global Sensitivity')
+    
 plt.show()
