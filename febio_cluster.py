@@ -190,7 +190,8 @@ def get_cluster_output(samples, febioFile, inparams, outparams):
 
         print(jobID, 'read')
 
-        # cleanup
+    # only cleanup after everything is read properly. 
+    for jobID in jobs:
         jobs[jobID].cleanFiles(ssh)
     
     
