@@ -45,15 +45,11 @@ print('Control file: ', controlFile)
 # check for cluster flag
 cluster = False
 queueOnly = False
-finalize = False
 if "--cluster" in sys.argv:
     cluster = True
 elif "--queue" in sys.argv:
     cluster = True
     queueOnly = True
-elif "--finalize" in sys.argv:
-    cluster = True
-    finalize = True
 
 # check for restart flag
 restart = False
@@ -170,7 +166,10 @@ if cluster:
         febio_cluster.queueJobs(pce.samples, febioFile, inparams, outparams)
         quit()
     else:
-        model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparams)
+        if restart:
+            model_output = febio_cluster.get_cluster_output(pce.samples, febioFile, inparams, outparams)
+        else:
+            model_output = febio_cluster.febio_output_cluster(pce.samples, febioFile, inparams, outparams)
 else:
     if restart==False:
         if (numParallelJobs == 1):
