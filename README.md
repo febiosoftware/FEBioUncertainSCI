@@ -89,3 +89,39 @@ The options are:
 - cluster: Run the FEBio jobs on a remote cluster 
 
 Note that if the parallelJobs is specified and the threadsPerJob omitted, each FEBio job will try to run with all avaialble processors (unless FEBio is configured differently), which may significantly degrade performance. 
+
+### Running on a cluster
+You can use FEBioUncertainSci to queue your jobs on a cluster that is using the SLURM queueing system. 
+
+#### Setting your cluster settings
+Before using FEBioUncertainSci to launch jobs on your cluster, you must first edit the cluster_settings.py script found in this repository. This script looks like this
+
+
+```
+HOSTNAME = ""
+USERNAME = ""
+REMOTEDIR = ""
+REMOTEFEBIO = ""
+
+SLURMDIR = ""
+SBATCH = SLURMDIR + "sbatch"
+SQUEUE = SLURMDIR + "squeue"
+
+SCRIPT ='''#!/bin/bash
+#SBATCH --nodes=1               # Run all processes on a single nodes
+#SBATCH --ntasks=1              # Run a single task
+#SBATCH --cpus-per-task=10     # Number of CPU cores per task
+'''
+```
+
+Set the proper values for your cluster's hostname, your username on the cluster, the directory on the remote server to which you want the FEBio input files to be copied and in which FEBio will be run, and the full path to an FEBio exectuable located on your remote server. You can also set the SLURMDIR variable to the path containing your SLURM exectuables if you get errors saying that the system can't find your sbatch or squeue commands. 
+
+FEBio cannot run on multiple nodes, but you can set the number of processors FEBio will use be eddting the cpus-per-task value in the script above. 
+
+
+#### Queing the jobs
+There are 2 ways to queue jobs onto your cluster using FEBioUncertainSci. 
+
+The first is to pass the `--cluster` flag to FEBioUncertainSci. This will have FEBioUncertainSCi transfer the necessary files to your server, queue the jobs on your cluster, wait for the jobs to finish, transfer the output files back, and then run the uncertainty analysis on those files. 
+
+If, however, you know that your jobs will take some time to run, and you dont' want to leave FEBioUncertainSci running on your local machine while you wait for the jobs to finish, you can simply queue the jobs using the `--queue` flag. This will just transfer the necessary files to your server, and queue the jobs on your cluster. Then, at a later time, when you are sure that all of those jobs have finished, your can rerun FEBioUncertainSci with both the `--cluster` and `--restart` flags (please note that you still have to pass it the FEBio input file, and the control file). This will connect to your server, transfer the output files back, and then run the uncertainty analysis on those files.
