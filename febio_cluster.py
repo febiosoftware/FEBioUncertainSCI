@@ -1,21 +1,21 @@
-import os, time, febio_model, getpass
+import os, time, febio_model, getpass, json
 import numpy as np
 from paramiko import SSHClient, SFTPClient, Transport, AutoAddPolicy
 from cluster_settings import *
 
 class JobFile:
     
-    def __init__(self, febFile, runName):
-        self.runName = runName
+    def __init__(self, febFile, localID):
+        self.localID = int(localID)
         workingDir = os.path.dirname(febFile)
         # if this isn't empy, add an ending slash
         if workingDir:
             workingDir += "/"
         
         febName = os.path.basename(febFile)
-        self.runFile = "run" + runName + ".feb"
-        outFile = "out" + runName + ".txt"
-        scriptFile = "script" + runName + ".sh"
+        self.runFile = "run" + localID + ".feb"
+        outFile = "out" + localID + ".txt"
+        scriptFile = "script" + localID + ".sh"
         
         self.localFeb = workingDir + febName
         self.localRunFile = workingDir + self.runFile
@@ -57,7 +57,11 @@ class JobFile:
         sftp.put(self.localScript, self.remoteScript)
         
     def getFiles(self, sftp):
-        sftp.get(self.remoteOutFile, self.localOutFile)
+        try:
+            sftp.get(self.remoteOutFile, self.localOutFile)
+        except:
+            print("Remote file " + self.remoteOutFile + " does not exist")
+            quit()
         
     def cleanFiles(self, ssh):
         ssh.exec_command("rm " + self.remoteOutFile + " " + self.remoteScript + " " + self.remoteRunFile)
@@ -101,7 +105,7 @@ def startClient():
     
     return ssh, sftp
 
-def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
+def queueJobs(samples, febioFile, inparams, outparams, ssh = None, sftp = None):
     closeSSH = False
     if ssh is None:
         ssh, sftp = startClient()
@@ -115,17 +119,6 @@ def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
     # get sample size
     totalJobs = samples.shape[0]
     
-    infoName = os.path.splitext(os.path.basename(febioFile))[0] + ".info"
-    
-    info = open(infoName, 'w')
-    
-    info.write("REMOTEDIR=" + REMOTEDIR + "\n")
-    info.write("FEBIOFILE=" + febioFile + "\n")
-    info.write("OUTPARAM=" + outparam + "\n")
-    
-    info.write("SAMPLES:" + "\n")
-    info.write(str(samples))
-    
     # This will store the processes
     jobs = {}
     # start all jobs
@@ -136,25 +129,80 @@ def queueJobs(samples, febioFile, inparams, outparam, ssh = None, sftp = None):
         jobs[current] = JobFile(febioFile, currentString)
         jobs[current].makeBatchScript()
         
-        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].remoteOutFile, samples[current, :], inparams, outparam)
+        febio_model.createRunFile(jobs[current].localRunFile, jobs[current].remoteOutFile, samples[current, :], inparams, outparams)
         
         current += 1
-        
-    info.write("\nJOBS:" + "\n")
+    
+    # Build info dictionary to write info to json file
+    info = {}
+    info["REMOTEDIR"] = REMOTEDIR
+    info["JOBS"] = []
+    
     for key in jobs:
         jobs[key].putFiles(sftp)
         jobs[key].queueJob(ssh)
-        info.write(jobs[key].runName + " " + str(jobs[key].jobID) + "\n")
         
-    info.close()
+        jobInfo = {}
+        jobInfo["ID"] = jobs[key].localID
+        jobInfo["remoteID"] = jobs[key].jobID
+        info["JOBS"].append(jobInfo)
+        
+    infoFile = os.path.splitext(os.path.basename(febioFile))[0] + ".info"
+    with open(infoFile, "w") as f:
+        f.write(json.dumps(info))
+    
     
     if closeSSH:
         sftp.close()
         ssh.close()
     
     return jobs
+
+def get_cluster_output(samples, febioFile, inparams, outparams):
+    infoFile = os.path.splitext(os.path.basename(febioFile))[0] + ".info"
+    
+    jobInfo = {}
+    with open(infoFile, "r") as f:
+        jobInfo = json.load(f)    
+    
+    # Overwrite the REMOTEDIR variable defined in cluster_settings.py
+    # with the one stored when the model was started.
+    global REMOTEDIR
+    REMOTEDIR = jobInfo["REMOTEDIR"]
+    
+    jobs = {}
+    for job in jobInfo["JOBS"]:
+        jobID = job["ID"]
+            
+        jobs[jobID] = JobFile(febioFile, str(jobID))
+    
+    ssh, sftp = startClient()
+    
+    model_output = np.empty([len(outparams), samples.shape[0], 1])
+    
+    for jobID in jobs:
+        jobs[jobID].getFiles(sftp)
         
-def febio_output_cluster(samples, febioFile, inparams, outparam):
+        v = febio_model.get_febio_output(jobs[jobID].localOutFile)
+
+        for i in range(len(outparams)):
+            model_output[i, jobID, :] = v[i]
+
+        print(jobID, 'read')
+
+    # only cleanup after everything is read properly. 
+    for jobID in jobs:
+        jobs[jobID].cleanFiles(ssh)
+    
+    
+    sftp.close()
+    ssh.close()
+    
+    # All done, so return 
+    return model_output
+    
+
+def febio_output_cluster(samples, febioFile, inparams, outparams):
     
     missing = False
     if HOSTNAME == "":
@@ -179,10 +227,10 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
     ssh, sftp = startClient()    
     
     # This will store the processes
-    jobs = queueJobs(samples, febioFile, inparams, outparam, ssh, sftp)
+    jobs = queueJobs(samples, febioFile, inparams, outparams, ssh, sftp)
     
     # create empty output array
-    model_output = np.empty([samples.shape[0], 1])
+    model_output = np.empty([len(outparams), samples.shape[0], 1])
     
     while True:
         finished = []
@@ -195,7 +243,8 @@ def febio_output_cluster(samples, febioFile, inparams, outparam):
         for jobID in finished:
             v = febio_model.get_febio_output(jobs[jobID].localOutFile)
 
-            model_output[jobID, :] = v
+            for i in range(len(outparams)):
+                model_output[i, jobID, :] = v[i]
 
             print(jobID, 'done')
 
