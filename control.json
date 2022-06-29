@@ -8,8 +8,6 @@
         ["fem.material[0].v", 0.0, 0.495]
     ],
     "out" : [ 
-        "fem.rigidbody('rigid').Fx",
-        "fem.rigidbody('rigid').Fx",
         "fem.rigidbody('rigid').Fx"
     ]
 }
