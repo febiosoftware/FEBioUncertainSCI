@@ -114,7 +114,8 @@ print(outparams)
 # Add all parameter distributions to this variable
 p = TensorialDistribution(distributions=dists)
 
-pceOrder = data['pce']['order']
+pceData = data['pce']
+pceOrder = pceData['order']
 print(f'PCE order = {pceOrder}')
 
 ############################ Build PCE #############################
@@ -125,7 +126,14 @@ pce = PolynomialChaosExpansion(distribution=p, index_set=index_set)
 # first generate the samples
 # if the restart flag was defined, we read the samples from the 'pcesamples.txt' file. 
 if restart==False:
-    pce.generate_samples()
+    if ('oversamples' in pceData):
+        oversamples = pceData['oversamples']
+        print(f'PCE oversamples = {oversamples}')
+        pce.generate_samples(oversampling=oversamples)
+    else:
+        pce.generate_samples()
+
+    print(f'samples: {len(pce.samples)}')
     print(pce.samples)
 
     # write samples to file (for restart)
@@ -203,7 +211,8 @@ for n in range(len(outparams)):
 
     # do the uncertainsci stuff
     outdata = model_output[n]
-    pce.build_pce_wafp(model_output=outdata)
+#    pce.build_pce_wafp(model_output=outdata)
+    pce.build(model_output=outdata)
 
     mean = pce.mean()
     stdev = pce.stdev()
