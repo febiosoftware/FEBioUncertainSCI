@@ -1,15 +1,35 @@
 # FEBioUncertainSCI
-This project aims to couple FEBio with the UncertainSCI package for uncertainty quantification. 
+This project aims to couple FEBio with the UncertainSCI package for uncertainty quantification and sensitivity analysis. 
 
-**Disclaimer**: This is a work in progress and at this point very rudimentary. Use at your own risk! 
+# Table of Contents
 
-## 1. Prerequisites
-To run this tool, you will need:
-- FEBio version 3.7 or newer.
+[1. Background](#1-background)  
+[2. Prerequisites](#2-prerequisites)  
+[3. Instructions](#3-instructions)  
+[4. Control file structure](#4-control-file-structure)  
+[5. Output](#5-output)  
+[6. Advanced options](#6-advanced-options)  
+
+
+## 1. Background
+Both uncertainty quantification (UQ) and sensitivity analysis (SA) are important tools for evaluating model fidelity. Together they can assess how sensitive the model output parameters depend on the model input parameters and which parameters affect model output the strongest. This information can be combined with expert knowledge to determine whether the model predicts real world observations accurately. The UncertainSCI package offers a general tool for doing UQ and SA. Here, we have coupled this tool with FEBio to perform UQ and SA on FEBio models. 
+
+The approach used in UncertainSCI is based on Polynomial Chaos Expansion (PCE), which is a stochastic method that is computationally less expensive than more traditional methods (e.g. Monte Carlo) for determining model variability. The PCE approach reduces significantly the number of model evaluations necessary in order to extract meaningful statistics, such as expected values, variances, variable sensitivities, etc. For those who are interested in the details of this approach, please consult the following paper: 
+
+https://onlinelibrary.wiley.com/doi/epdf/10.1002/cnm.3395
+
+or visit the [UncertainSCI webpage](https://www.sci.utah.edu/cibc-software/uncertainsci.html).
+
+**Disclaimer**: FEBioUncertainSCI is a work in progress and at this point very rudimentary. Use at your own risk! 
+
+## 2. Prerequisites
+The following software packages need to be installed on your system:
+
+- FEBio version 3.7 or newer. Please visit the [FEBio website](https://febio.org) to download the latest version. 
 - A python version (this has been tested with Python 3.8.10) as well as the numpy library. 
-- The UncertainSCI package (https://www.sci.utah.edu/cibc-software/uncertainsci.html). Note that this package does not work with Python 3.10 (last checked on Nov 2021). 
+- The [UncertainSCI package](https://github.com/SCIInstitute/UncertainSCI). Note that this package does not work with Python 3.10 (last checked on Nov 2021). 
 
-## 2. Instructions
+## 3. Instructions
 To run this tool, you will need to prepare two files: 
 
 - first, you need a FEBio model file. A test model file (Model1.feb) is provided. 
@@ -27,22 +47,24 @@ Once the tool completes, you may delete these files.
 
 If all goes well, you will see a box plot, generated from sampling the PCE, and a pie chart that lists the global sensitivities for the different parameters and their interactions.
 
+Some examples are provided and detailed in the [EXAMPLES.md](EXAMPLES.md) file. 
+
 Good luck!
 
-## 3. Control file structure
+## 4. Control file structure
 The control file is a JSON file and lists all the necessary parameters for the uncertainty quantification. It contains the following blocks:
 
 - pce: defines the control parameters for the UncertainSCI tool. 
 - in : lists the FEBio model parameters for which the sensitivity will be evaluated. 
 - out: lists the FEBio output parameters for the the uncertainty is calculated. 
 
-### 3.1. the pce block
+### 4.1. the pce block
 The pce block defines the control parameters that the UncertainSCI tool needs to run the analysis. The following parameters are supported: 
 
 - order: The order of the pce
 - oversamples: The number of additional samples that will be used in addition to the default samples determined by the UncertainSCI tool. 
 
-### 3.2. the in block
+### 4.2. the in block
 The in block defines the list of FEBio model parameters for which UncertainSCI will determine the sensitity of. 
 For each parameter, the name and a value range must be defined. For example,
 
@@ -53,10 +75,14 @@ For each parameter, the name and a value range must be defined. For example,
 Notice that the parameter name must be inside quotes. The values define the min, and max value respectively of the domain that will be sampled. 
 (Currently, the domain will be sampled uniformly. In the future other sampling methods will be added.) 
 
-### 3.3. the out block
+Please consult the FEBio User Manual (Appendix B) on how to reference model parameters (https://help.febio.org/docs/FEBioUser-3-6/UM36-Appendix-B.html ). 
+
+### 4.3. the out block
 The out block defines the list of output parameters that will be used to evaluate the uncertainty of. The sensitivity of the input parameters with respect to these output parameters will be calculated. 
 
-### 3.4. Example control file
+Please consult the FEBio User Manual (Appendix B) on how to reference model parameters (https://help.febio.org/docs/FEBioUser-3-6/UM36-Appendix-B.html ). 
+
+### 4.4. Example control file
 The following control file uses a pce of order 4 and quantifies the sensitivity of two model input parameters (E, v) on the output parameter, the x-component of the rigid body reaction force. 
 
 ```
@@ -75,7 +101,15 @@ The following control file uses a pce of order 4 and quantifies the sensitivity 
 }
 ```
 
-## Advanced options
+## 5. Output 
+The tool generates the following output. 
+
+- pcesamples.txt: The sampled values of the input parameter distribution. FEBio will be run with these samples as the values of the input parameters. 
+- pceresults.txt: The values of the requested output variables evaluated at the sampling points. 
+- The screen output contains the previous output, as well as mean, standard deviation, global and total sensitivities. 
+- A plot is generated for each output variable showing a box-plot of the generated data for the corresponding output variable, as well as a pie-chart with the input parameter sensitivities. 
+
+## 6. Advanced options
 By default, the FEBioUncertainSCI will run locally and sequentially (FEBio may still run in parallel). Using the advanced options, the tool can be run in parallel, and even on a remote cluster. 
 
 The full command line is:  
@@ -90,7 +124,7 @@ The options are:
 
 Note that if the parallelJobs is specified and the threadsPerJob omitted, each FEBio job will try to run with all avaialble processors (unless FEBio is configured differently), which may significantly degrade performance. 
 
-### Running on a cluster
+### 6.1. Running on a cluster
 You can use FEBioUncertainSci to queue your jobs on a cluster that is using the SLURM queueing system. 
 
 #### Setting your cluster settings
