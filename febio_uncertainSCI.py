@@ -210,7 +210,7 @@ for n in range(len(outparams)):
 
     # do the uncertainsci stuff
     outdata = model_output[n]
-#    pce.build_pce_wafp(model_output=outdata)
+    pce.model_output = None
     pce.build(model_output=outdata)
 
     mean = pce.mean()
