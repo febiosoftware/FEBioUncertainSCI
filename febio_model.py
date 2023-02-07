@@ -70,7 +70,7 @@ def febio_function(p, febioFile, runFileName, outFileName, inparams, outparams):
 
     # run febio
     print('calling febio ...', str(p))
-    subprocess.run(['febio3', '-i', febioFile, '-task=param_run', runFileName, '-silent'])
+    subprocess.run(['febio4', '-i', febioFile, '-task=param_run', runFileName, '-silent'])
 
     # read the output file
     v = get_febio_output(outFileName)

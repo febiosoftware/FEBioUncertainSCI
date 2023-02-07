@@ -25,7 +25,7 @@ or visit the [UncertainSCI webpage](https://www.sci.utah.edu/cibc-software/uncer
 ## 2. Prerequisites
 The following software packages need to be installed on your system:
 
-- FEBio version 3.7 or newer. Please visit the [FEBio website](https://febio.org) to download the latest version. 
+- FEBio version 4.0 or newer. Please visit the [FEBio website](https://febio.org) to download the latest version. 
 - A python version (this has been tested with Python 3.8.10) as well as the numpy library. 
 - The [UncertainSCI package](https://github.com/SCIInstitute/UncertainSCI). Note that this package does not work with Python 3.10 (last checked on Nov 2021). 
 
