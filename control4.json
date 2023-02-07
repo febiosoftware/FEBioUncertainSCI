@@ -1,0 +1,13 @@
+{
+    "pce" :
+    {
+        "order" : 4
+    },
+    "in" : [ 
+        ["fem.material[0].E",  100, 500],
+        ["fem.mesh.domain[0].shell_thickness",  0.01, 0.05]
+    ],
+    "out" : [ 
+        "fem.rigidbody('Material2').position.x"
+    ]
+}
